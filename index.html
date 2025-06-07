@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Sparse Tree</title>
+		<style>
+			canvas {
+				border: 1px solid black;
+			}
+			body {
+				display: flex;
+				gap: 1em;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="a">
+			<canvas width="500" height="500"></canvas>
+			<p></p>
+		</div>
+		<div id="b">
+			<canvas width="500" height="500"></canvas>
+			<p></p>
+		</div>
+		<script>
+			class Tree {
+				constructor(size, topLeft, bottomLeft, topRight, bottomRight) {
+					this.size = size / 2;
+					this.quadrants = [
+						topLeft,
+						bottomLeft,
+						topRight,
+						bottomRight
+					];
+				}
+				has(x, y) {
+					var quadrant = (() => {
+							var x = Math.floor(x / size);
+							var y = Math.floor(y / size);
+							return this.quadrants[x * 2 + y];
+						})();
+					if(typeof quadrant == "boolean")
+						return quadrant;
+					return quadrant.has(x % size, y % size);
+				}
+				simplify() {
+					for(var i = 0; i < 4; i++) {
+						var quadrant = this.quadrants[i];
+						if(typeof quadrant != "boolean")
+							this.quadrants[i] = quadrant.simplify();
+					}
+					if(this.quadrants.every(x => x == true))
+						return true;
+					if(this.quadrants.every(x => x == false))
+						return false;
+					return this;
+				}
+				draw(canvas, x, y) {
+					canvas.strokeRect(x, y, this.size * 2, this.size * 2);
+					for(var [index, quadrant] of this.quadrants.entries()) {
+						var x1 = x + this.size * Math.floor(index / 2);
+						var y1 = y + this.size * (index % 2);
+						if(typeof quadrant == "boolean") {
+							if(quadrant)
+								canvas.fillRect(x1, y1, this.size, this.size);
+						} else {
+							quadrant.draw(canvas, x1, y1);
+						}
+					}
+				}
+				static quadrant(array, x, y) {
+					var quadrant = [];
+					var size = Math.sqrt(array.length) / 2;
+					for(var i = 0; i < size; i++) {
+						var index = x * array.length / 2 + size * (i * 2 + y);
+						var column = array.slice(index, index + size);
+						quadrant.push(...column);
+					}
+					return quadrant;
+				}
+				static create(array, size) {
+					if(array.length == 1)
+						return array[0];
+					return new Tree(
+						size,
+						Tree.create(Tree.quadrant(array, 0, 0), size / 2),
+						Tree.create(Tree.quadrant(array, 0, 1), size / 2),
+						Tree.create(Tree.quadrant(array, 1, 0), size / 2),
+						Tree.create(Tree.quadrant(array, 1, 1), size / 2)
+					).simplify();
+				}
+				count() {
+					var count = 1;
+					for(var quadrant of this.quadrants)
+						if(typeof quadrant != "boolean")
+							count += quadrant.count();
+					return count;
+				}
+			}
+			var aLabel = document.querySelector("#a p");
+			var aCanvas = document.querySelector("#a canvas");
+			var aContext = aCanvas.getContext("2d");
+			var bLabel = document.querySelector("#b p");
+			var bCanvas = document.querySelector("#b canvas");
+			var bContext = bCanvas.getContext("2d");
+			var levels = 5;
+			var width = 1 << levels;
+			var pixel = aCanvas.width / width;
+			var pixels = Array(width * width).fill(false);
+			var mouseX;
+			var mouseY;
+			bContext.strokeStyle = "red";
+			aLabel.textContent = `Complexity: ${pixels.length}`;
+			bLabel.textContent = `Complexity: 1`;
+			bCanvas.onmousedown = aCanvas.onmousedown = function(event) {
+				mouseX = event.offsetX;
+				mouseY = event.offsetY;
+				draw(mouseX, mouseY, mouseX, mouseY);
+			};
+			bCanvas.onmouseup = aCanvas.onmouseup = function() {
+				mouseX = mouseY = undefined;
+			};
+			bCanvas.onmousemove = aCanvas.onmousemove = function(event) {
+				if(mouseX) {
+					draw(mouseX, mouseY, event.offsetX, event.offsetY);
+					mouseX = event.offsetX;
+					mouseY = event.offsetY;
+				}
+			};
+			function draw(x1, y1, x2, y2) {
+				var changed = false;
+				var x1 = Math.floor(x1 / pixel);
+				var y1 = Math.floor(y1 / pixel);
+				var x2 = Math.floor(x2 / pixel);
+				var y2 = Math.floor(y2 / pixel);
+				for(var [x, y] of line(x1, y1, x2, y2))
+					if(pixels[x * width + y] == false) {
+						pixels[x * width + y] = true;
+						changed = true;
+						aContext.fillRect(x * pixel, y * pixel, pixel, pixel);
+					}
+				if(changed) {
+					var tree = Tree.create(pixels, aCanvas.width);
+					tree.draw(bContext, 0, 0);
+					bLabel.textContent = `Complexity: ${tree.count()}`;
+				}
+			}
+			function* line(x1, y1, x2, y2) {
+				var dx = Math.abs(x2 - x1);
+				var dy = Math.abs(y2 - y1);
+				var sx = x1 < x2 ? 1 : -1;
+				var sy = y1 < y2 ? 1 : -1;
+				var error = dx - dy;
+				while(true) {
+					yield [x1, y1];
+					if((x1 - x2) * sx >= 0 && (y1 - y2) * sy >= 0)
+						return;
+					if(2 * error > -dy) {
+						error -= dy;
+						x1 += sx;
+					}
+					if(2 * error < dx) {
+						error += dx;
+						y1 += sy;
+					}
+				}
+			}
+		</script>
+	</body>
+</html>
